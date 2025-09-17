@@ -203,6 +203,57 @@ If you find this tool useful, please consider supporting its development. Your s
 - Ensure your user is in the `audio` group: `sudo usermod -a -G audio $USER`
 - For better performance, consider using `pipewire` instead of `pulseaudio`
 
+## 📄 .env.example
+
+```env
+# OpenAI API Configuration
+OPENAI_API_KEY=your_openai_api_key_here
+OPENAI_MODEL=gpt-5-nano
+OPENAI_MAX_TOKENS=150
+OPENAI_TEMPERATURE=0.7
+
+# Server Configuration
+SERVER_HOST=127.0.0.1
+SERVER_PORT=8123
+
+# Whisper Configuration
+WHISPER_MODEL=base
+WHISPER_DEVICE=auto
+WHISPER_COMPUTE_TYPE=float16
+
+# Audio Configuration
+SAMPLE_RATE=16000
+CHANNELS=1
+CHUNK_DURATION_MS=1000
+
+# Question Detection
+MIN_QUESTION_LENGTH=10
+QUESTION_DETECTION_ENABLED=true
+
+# Logging
+LOG_LEVEL=INFO
+```
+
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+1. Fork the project
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
+
+## 📝 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🙏 Acknowledgments
+
+- [OpenAI](https://openai.com/) for their powerful language models
+- [faster-whisper](https://github.com/guillaumekln/faster-whisper) for efficient speech recognition
+- [FFmpeg](https://ffmpeg.org/) for robust audio processing
+
 ## 🤝 Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
