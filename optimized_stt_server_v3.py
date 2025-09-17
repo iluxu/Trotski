@@ -34,7 +34,7 @@ LLM_ENABLED = os.getenv("STT_LLM_ENABLED", "1") not in ("0", "false", "False")
 GPT_MODEL = os.getenv("STT_LLM_MODEL", "gpt-5-nano")
 GPT_EFFORT = os.getenv("STT_LLM_EFFORT", "low")
 # ⚠️ Do not hardcode a default key in source code
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "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")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 
 # LLM Context Control
 CONTEXT_WINDOW_CHARS = int(os.getenv("STT_CONTEXT_CHARS", "3000"))
@@ -611,4 +611,5 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"\n[fatal_error] {e}")
         import traceback
+
         traceback.print_exc()
