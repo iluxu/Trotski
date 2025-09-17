@@ -1,0 +1,1150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>STT Interview Panel</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'SF Mono', 'Monaco', 'Cascadia Code', 'Roboto Mono', monospace;
+            background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%);
+            color: #e6e6e6;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .header {
+            background: rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 0.75rem 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #00d4ff;
+            text-shadow: 0 0 10px rgba(0, 212, 255, 0.3);
+        }
+
+        .status-indicators {
+            display: flex;
+            gap: 1rem;
+            font-size: 0.8rem;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        .status-connected { background: #00ff88; }
+        .status-disconnected { background: #ff6b6b; }
+        .status-auto-scroll { background: #ffd93d; }
+        .status-follow { background: #6bcf7f; }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .main-container {
+            display: grid;
+            grid-template-columns: 2fr 3fr 2fr;
+            height: calc(100vh - 60px);
+            gap: 1px;
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .panel {
+            background: rgba(0, 0, 0, 0.2);
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .panel-header {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            font-weight: 600;
+            font-size: 0.9rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .panel-content {
+            flex: 1;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Transcript Panel */
+        .transcript-log {
+            height: 100%;
+            overflow-y: auto;
+            padding: 1rem;
+            font-size: 0.85rem;
+            line-height: 1.6;
+            scroll-behavior: smooth;
+        }
+
+        .transcript-line {
+            margin-bottom: 0.5rem;
+            padding: 0.25rem 0;
+            border-left: 2px solid transparent;
+            padding-left: 0.5rem;
+            transition: all 0.3s ease;
+        }
+
+        .transcript-line.recent {
+            border-left-color: #00d4ff;
+            background: rgba(0, 212, 255, 0.05);
+            animation: fadeIn 0.5s ease;
+        }
+
+        .timestamp {
+            color: #888;
+            font-size: 0.75rem;
+            margin-right: 0.5rem;
+        }
+
+        /* Answer Detail Panel */
+        .answer-detail {
+            height: 100%;
+            overflow-y: auto;
+            padding: 1rem;
+            font-size: 0.9rem;
+            line-height: 1.7;
+        }
+
+        .answer-question {
+            color: #00d4ff;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            padding: 0.5rem;
+            background: rgba(0, 212, 255, 0.1);
+            border-radius: 6px;
+            border-left: 3px solid #00d4ff;
+        }
+
+        .answer-content {
+            color: #e6e6e6;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .answer-pending {
+            color: #ffd93d;
+            font-style: italic;
+            animation: blink 1.5s infinite;
+        }
+
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0.5; }
+        }
+
+        /* Questions Table */
+        .qa-table-container {
+            height: 100%;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .qa-table {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .qa-row {
+            display: grid;
+            grid-template-columns: 80px 1fr 120px;
+            padding: 0.75rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 0.85rem;
+        }
+
+        .qa-row:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .qa-row.selected {
+            background: rgba(0, 212, 255, 0.15);
+            border-left: 3px solid #00d4ff;
+        }
+
+        .qa-status {
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .qa-status.pending {
+            color: #ffd93d;
+        }
+
+        .qa-status.answered {
+            color: #00ff88;
+        }
+
+        .qa-question {
+            color: #e6e6e6;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            padding-right: 0.5rem;
+        }
+
+        .qa-preview {
+            color: #aaa;
+            font-size: 0.75rem;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        /* Controls */
+        .controls {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            display: flex;
+            gap: 0.5rem;
+            z-index: 1000;
+        }
+
+        .control-btn {
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #e6e6e6;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            transition: all 0.2s ease;
+            font-family: inherit;
+        }
+
+        .control-btn:hover {
+            background: rgba(0, 212, 255, 0.2);
+            border-color: #00d4ff;
+            transform: translateY(-1px);
+        }
+
+        .control-btn.active {
+            background: rgba(0, 212, 255, 0.3);
+            border-color: #00d4ff;
+            color: #00d4ff;
+        }
+
+        /* Ask Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(5px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .modal-overlay.show {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal {
+            background: rgba(0, 0, 0, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+            padding: 2rem;
+            min-width: 400px;
+            max-width: 600px;
+        }
+
+        .modal h3 {
+            color: #00d4ff;
+            margin-bottom: 1rem;
+            font-size: 1.1rem;
+        }
+
+        .modal input {
+            width: 100%;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 6px;
+            padding: 0.75rem;
+            color: #e6e6e6;
+            font-family: inherit;
+            font-size: 0.9rem;
+        }
+
+        .modal input:focus {
+            outline: none;
+            border-color: #00d4ff;
+            box-shadow: 0 0 0 2px rgba(0, 212, 255, 0.2);
+        }
+
+        .modal-buttons {
+            margin-top: 1rem;
+            display: flex;
+            gap: 0.5rem;
+            justify-content: flex-end;
+        }
+
+        /* Scrollbars */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        /* Animations */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .fade-in {
+            animation: fadeIn 0.3s ease;
+        }
+
+        /* Mobile responsiveness */
+        @media (max-width: 768px) {
+            .main-container {
+                grid-template-columns: 1fr;
+                grid-template-rows: 1fr 1fr 1fr;
+            }
+            
+            .header h1 {
+                font-size: 1rem;
+            }
+            
+            .status-indicators {
+                font-size: 0.7rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🎤 STT Interview Panel</h1>
+        <div class="status-indicators">
+            <div class="status-item">
+                <div id="ws-status" class="status-dot status-disconnected"></div>
+                <span id="ws-text">Connecting...</span>
+            </div>
+            <div class="status-item">
+                <div id="autoscroll-status" class="status-dot"></div>
+                <span>Auto-Scroll</span>
+            </div>
+            <div class="status-item">
+                <div id="follow-status" class="status-dot status-follow"></div>
+                <span>Follow Latest</span>
+            </div>
+            <div class="status-item">
+                <span id="qa-count">QAs: 0 (pending: 0)</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="main-container">
+        <!-- Transcript Panel -->
+        <div class="panel">
+            <div class="panel-header">
+                <span>📝 Transcript</span>
+                <span id="transcript-info">Waiting for audio...</span>
+            </div>
+            <div class="panel-content">
+                <div id="transcript-log" class="transcript-log">
+                    <div class="transcript-line">
+                        <span class="timestamp">[--:--:--]</span>
+                        <span>Waiting for audio stream...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Answer Detail Panel -->
+        <div class="panel">
+            <div class="panel-header">
+                <span>💡 Answer Details</span>
+                <span id="detail-info">Select a question to view details</span>
+            </div>
+            <div class="panel-content">
+                <div id="answer-detail" class="answer-detail">
+                    <div style="text-align: center; color: #888; margin-top: 2rem;">
+                        Select a question from the right panel or ask a new one to see the detailed answer here.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Questions & Answers Panel -->
+        <div class="panel">
+            <div class="panel-header">
+                <span>❓ Questions & Answers</span>
+                <span id="qa-info">Ready</span>
+            </div>
+            <div class="panel-content">
+                <div class="qa-table-container">
+                    <div id="qa-table" class="qa-table">
+                        <!-- Questions will be populated here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="controls">
+        <button class="control-btn" onclick="toggleAutoScroll()" title="Toggle auto-scroll (p)">📜 Auto</button>
+        <button class="control-btn active" onclick="toggleFollow()" title="Follow latest question (f)">👁️ Follow</button>
+        <button class="control-btn" onclick="askQuestion()" title="Ask a question (a)">❓ Ask</button>
+        <button class="control-btn" onclick="resetView()" title="Reset view (r)">🔄 Reset</button>
+        <button class="control-btn" onclick="saveSnapshot()" title="Save snapshot (s)">💾 Save</button>
+    </div>
+
+    <!-- Ask Modal -->
+    <div id="ask-modal" class="modal-overlay">
+        <div class="modal">
+            <h3>Ask a Question</h3>
+            <input type="text" id="question-input" placeholder="Type your question here..." />
+            <div class="modal-buttons">
+                <button class="control-btn" onclick="closeAskModal()">Cancel</button>
+                <button class="control-btn" onclick="submitQuestion()">Ask</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class STTInterviewPanel {
+            constructor() {
+                this.ws = null;
+                this.state = {
+                    transcript: '',
+                    qas: [],
+                    pending: new Set(),
+                    connected: false,
+                    autoScroll: false,
+                    followLatest: true,
+                    selectedIndex: -1
+                };
+                this.seenQuestions = new Set();
+                this.reconnectTimeout = null;
+                this.init();
+            }
+
+            init() {
+                this.setupKeyboardShortcuts();
+                this.connectWebSocket();
+                this.updateUI();
+            }
+
+            setupKeyboardShortcuts() {
+                document.addEventListener('keydown', (e) => {
+                    if (e.target.tagName === 'INPUT') return;
+                    
+                    switch(e.key.toLowerCase()) {
+                        case 'a': this.askQuestion(); break;
+                        case 'p': this.toggleAutoScroll(); break;
+                        case 'f': this.toggleFollow(); break;
+                        case 'r': this.resetView(); break;
+                        case 's': this.saveSnapshot(); break;
+                        case 'g': this.scrollTranscriptHome(); break;
+                        case 'j': this.selectNext(); break;
+                        case 'k': this.selectPrevious(); break;
+                        case 'escape': this.closeAskModal(); break;
+                    }
+                    
+                    if (e.key === 'G' && e.shiftKey) {
+                        this.scrollTranscriptEnd();
+                    }
+                });
+            }
+
+            connectWebSocket() {
+                const wsUrl = `ws://localhost:8123/`;
+                console.log(`Connecting to ${wsUrl}`);
+                
+                try {
+                    this.ws = new WebSocket(wsUrl);
+                    
+                    this.ws.onopen = () => {
+                        console.log('WebSocket connected');
+                        this.state.connected = true;
+                        this.updateConnectionStatus();
+                        if (this.reconnectTimeout) {
+                            clearTimeout(this.reconnectTimeout);
+                            this.reconnectTimeout = null;
+                        }
+                    };
+                    
+                    this.ws.onclose = () => {
+                        console.log('WebSocket disconnected');
+                        this.state.connected = false;
+                        this.updateConnectionStatus();
+                        this.scheduleReconnect();
+                    };
+                    
+                    this.ws.onerror = (error) => {
+                        console.error('WebSocket error:', error);
+                    };
+                    
+                    this.ws.onmessage = (event) => {
+                        try {
+                            const data = JSON.parse(event.data);
+                            this.handleMessage(data);
+                        } catch (e) {
+                            console.error('Failed to parse message:', e);
+                        }
+                    };
+                } catch (error) {
+                    console.error('Failed to create WebSocket:', error);
+                    this.scheduleReconnect();
+                }
+            }
+
+            scheduleReconnect() {
+                if (this.reconnectTimeout) return;
+                
+                this.reconnectTimeout = setTimeout(() => {
+                    console.log('Attempting to reconnect...');
+                    this.connectWebSocket();
+                }, 3000);
+            }
+
+            handleMessage(data) {
+                if (data.snapshot) {
+                    this.handleSnapshot(data.snapshot);
+                } else if (data.partial) {
+                    this.handlePartial(data.partial);
+                } else if (data.question_detected) {
+                    this.handleQuestionDetected(data.question_detected);
+                } else if (data.qa) {
+                    this.handleQA(data.qa);
+                }
+            }
+
+            handleSnapshot(snapshot) {
+                this.state.transcript = snapshot.transcript || '';
+                this.state.qas = (snapshot.detected || []).map(item => ({
+                    q: item.q,
+                    a: item.a || null,
+                    t: item.t,
+                    pending: !item.a
+                }));
+                this.state.pending.clear();
+                this.state.qas.forEach(qa => {
+                    if (qa.pending) this.state.pending.add(qa.q);
+                });
+                this.renderAll();
+            }
+
+            handlePartial(text) {
+                this.state.transcript = (this.state.transcript + ' ' + text).trim();
+                this.renderTranscriptLine(text);
+                this.updateUI();
+            }
+
+            handleQuestionDetected(question) {
+                const q = question.q;
+                if (!q || this.seenQuestions.has(q)) return;
+                
+                this.seenQuestions.add(q);
+                const qaItem = {
+                    q: q,
+                    a: null,
+                    t: question.t || Date.now(),
+                    pending: true,
+                    context: question.context || '',
+                    urgency: question.urgency || 'optional',
+                    confidence: question.confidence || 0.5
+                };
+                
+                this.state.qas.push(qaItem);
+                this.state.pending.add(q);
+                this.renderQuestion(qaItem);
+                this.updateUI();
+                
+                if (this.state.followLatest) {
+                    this.selectQuestion(this.state.qas.length - 1);
+                }
+                
+                // Notification pour questions urgentes
+                if (qaItem.urgency === 'immediate') {
+                    this.showNotification(`🔥 Urgent question detected: ${q.substring(0, 50)}...`, 'warning');
+                }
+            }
+
+            handleQA(qa) {
+                const q = qa.q;
+                const a = qa.a;
+                if (!q || !a) return;
+                
+                const qaItem = this.state.qas.find(item => item.q === q);
+                if (qaItem) {
+                    qaItem.a = a;
+                    qaItem.pending = false;
+                    this.state.pending.delete(q);
+                    this.renderQuestion(qaItem);
+                    
+                    if (this.state.selectedIndex >= 0 && 
+                        this.state.qas[this.state.selectedIndex] === qaItem) {
+                        this.renderAnswerDetail(qaItem);
+                    }
+                }
+                this.updateUI();
+            }
+
+            renderAll() {
+                this.renderTranscript();
+                this.renderQuestions();
+                this.updateUI();
+                if (this.state.qas.length > 0 && this.state.followLatest) {
+                    this.selectQuestion(this.state.qas.length - 1);
+                }
+            }
+
+            renderTranscript() {
+                const log = document.getElementById('transcript-log');
+                log.innerHTML = '';
+                
+                if (!this.state.transcript) {
+                    log.innerHTML = '<div class="transcript-line"><span class="timestamp">[--:--:--]</span><span>Waiting for audio stream...</span></div>';
+                    return;
+                }
+                
+                const sentences = this.state.transcript.split(/(?<=[.!?])\s+/);
+                sentences.forEach((sentence, index) => {
+                    if (sentence.trim()) {
+                        const lines = this.wrapText(sentence.trim(), 80);
+                        lines.forEach((line, lineIndex) => {
+                            const div = document.createElement('div');
+                            div.className = 'transcript-line';
+                            if (index === sentences.length - 1) {
+                                div.classList.add('recent');
+                            }
+                            
+                            const timestamp = lineIndex === 0 ? this.formatTimestamp() : '         ';
+                            div.innerHTML = `<span class="timestamp">${timestamp}</span><span>${line}</span>`;
+                            log.appendChild(div);
+                        });
+                    }
+                });
+                
+                if (this.state.autoScroll) {
+                    log.scrollTop = log.scrollHeight;
+                }
+            }
+
+            renderTranscriptLine(text) {
+                const log = document.getElementById('transcript-log');
+                const lines = this.wrapText(text.trim(), 80);
+                
+                lines.forEach((line, index) => {
+                    const div = document.createElement('div');
+                    div.className = 'transcript-line recent fade-in';
+                    
+                    const timestamp = index === 0 ? this.formatTimestamp() : '         ';
+                    div.innerHTML = `<span class="timestamp">${timestamp}</span><span>${line}</span>`;
+                    log.appendChild(div);
+                });
+                
+                // Remove 'recent' class after animation
+                setTimeout(() => {
+                    document.querySelectorAll('.transcript-line.recent').forEach(el => {
+                        el.classList.remove('recent');
+                    });
+                }, 3000);
+                
+                if (this.state.autoScroll) {
+                    log.scrollTop = log.scrollHeight;
+                }
+            }
+
+            renderQuestions() {
+                const table = document.getElementById('qa-table');
+                table.innerHTML = '';
+                
+                this.state.qas.forEach((qa, index) => {
+                    this.renderQuestion(qa, index);
+                });
+            }
+
+            renderQuestion(qa, index = null) {
+                if (index === null) {
+                    index = this.state.qas.indexOf(qa);
+                }
+                
+                const table = document.getElementById('qa-table');
+                let row = table.children[index];
+                
+                if (!row) {
+                    row = document.createElement('div');
+                    row.className = 'qa-row fade-in';
+                    row.onclick = () => this.selectQuestion(index);
+                    table.appendChild(row);
+                }
+                
+                const status = qa.pending ? 'pending' : 'answered';
+                const statusText = qa.pending ? '⏳ pending' : '✅ answered';
+                const preview = qa.a ? this.truncateText(qa.a, 50) : '(pending...)';
+                
+                row.innerHTML = `
+                    <div class="qa-status ${status}">${statusText}</div>
+                    <div class="qa-question" title="${qa.q}">${qa.q}</div>
+                    <div class="qa-preview" title="${preview}">${preview}</div>
+                `;
+                
+                if (index === this.state.selectedIndex) {
+                    row.classList.add('selected');
+                } else {
+                    row.classList.remove('selected');
+                }
+            }
+
+            selectQuestion(index) {
+                if (index < 0 || index >= this.state.qas.length) return;
+                
+                // Remove previous selection
+                document.querySelectorAll('.qa-row').forEach(row => {
+                    row.classList.remove('selected');
+                });
+                
+                // Add new selection
+                this.state.selectedIndex = index;
+                const row = document.getElementById('qa-table').children[index];
+                if (row) {
+                    row.classList.add('selected');
+                    row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }
+                
+                this.renderAnswerDetail(this.state.qas[index]);
+            }
+
+            renderAnswerDetail(qa) {
+                const detail = document.getElementById('answer-detail');
+                
+                if (!qa) {
+                    detail.innerHTML = `
+                        <div style="text-align: center; color: #888; margin-top: 2rem;">
+                            Select a question from the right panel or ask a new one to see the detailed answer here.
+                        </div>
+                    `;
+                    return;
+                }
+                
+                const answerContent = qa.a || 'Generating answer...';
+                const answerClass = qa.pending ? 'answer-pending' : '';
+                
+                detail.innerHTML = `
+                    <div class="answer-question">Q: ${qa.q}</div>
+                    <div class="answer-content ${answerClass}">${answerContent}</div>
+                `;
+            }
+
+            updateUI() {
+                this.updateConnectionStatus();
+                this.updateCounters();
+                this.updateControlStates();
+            }
+
+            updateConnectionStatus() {
+                const wsStatus = document.getElementById('ws-status');
+                const wsText = document.getElementById('ws-text');
+                
+                if (this.state.connected) {
+                    wsStatus.className = 'status-dot status-connected';
+                    wsText.textContent = 'Connected';
+                } else {
+                    wsStatus.className = 'status-dot status-disconnected';
+                    wsText.textContent = 'Disconnected';
+                }
+            }
+
+            updateCounters() {
+                const qaCount = document.getElementById('qa-count');
+                const pendingCount = this.state.pending.size;
+                qaCount.textContent = `QAs: ${this.state.qas.length} (pending: ${pendingCount})`;
+            }
+
+            updateControlStates() {
+                const autoScrollBtn = document.querySelector('[onclick="toggleAutoScroll()"]');
+                const followBtn = document.querySelector('[onclick="toggleFollow()"]');
+                const autoScrollStatus = document.getElementById('autoscroll-status');
+                const followStatus = document.getElementById('follow-status');
+                
+                if (this.state.autoScroll) {
+                    autoScrollBtn.classList.add('active');
+                    autoScrollStatus.className = 'status-dot status-auto-scroll';
+                } else {
+                    autoScrollBtn.classList.remove('active');
+                    autoScrollStatus.className = 'status-dot';
+                }
+                
+                if (this.state.followLatest) {
+                    followBtn.classList.add('active');
+                    followStatus.className = 'status-dot status-follow';
+                } else {
+                    followBtn.classList.remove('active');
+                    followStatus.className = 'status-dot';
+                }
+            }
+
+            // Utility methods
+            formatTimestamp() {
+                const now = new Date();
+                return `[${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}]`;
+            }
+
+            wrapText(text, maxLength) {
+                if (text.length <= maxLength) return [text];
+                
+                const words = text.split(' ');
+                const lines = [];
+                let currentLine = '';
+                
+                for (const word of words) {
+                    if ((currentLine + ' ' + word).length <= maxLength) {
+                        currentLine = currentLine ? currentLine + ' ' + word : word;
+                    } else {
+                        if (currentLine) lines.push(currentLine);
+                        currentLine = word;
+                    }
+                }
+                
+                if (currentLine) lines.push(currentLine);
+                return lines;
+            }
+
+            truncateText(text, maxLength) {
+                if (text.length <= maxLength) return text;
+                return text.substring(0, maxLength) + '...';
+            }
+
+            // Control methods
+            toggleAutoScroll() {
+                this.state.autoScroll = !this.state.autoScroll;
+                if (this.state.autoScroll) {
+                    const log = document.getElementById('transcript-log');
+                    log.scrollTop = log.scrollHeight;
+                }
+                this.updateUI();
+            }
+
+            toggleFollow() {
+                this.state.followLatest = !this.state.followLatest;
+                this.updateUI();
+            }
+
+            resetView() {
+                this.state.transcript = '';
+                this.state.qas = [];
+                this.state.pending.clear();
+                this.state.selectedIndex = -1;
+                this.seenQuestions.clear();
+                
+                if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+                    this.ws.send(JSON.stringify({ cmd: 'reset' }));
+                }
+                
+                this.renderAll();
+            }
+
+            saveSnapshot() {
+                const data = {
+                    timestamp: new Date().toISOString(),
+                    transcript: this.state.transcript,
+                    qas: this.state.qas
+                };
+                
+                const markdown = this.generateMarkdownReport(data);
+                const blob = new Blob([markdown], { type: 'text/markdown' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `stt_interview_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.md`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                // Show feedback
+                this.showNotification('Snapshot saved!', 'success');
+            }
+
+            generateMarkdownReport(data) {
+                let markdown = `# STT Interview Report\n\n`;
+                markdown += `**Generated:** ${data.timestamp}\n\n`;
+                
+                if (data.transcript) {
+                    markdown += `## 📝 Transcript\n\n${data.transcript}\n\n`;
+                }
+                
+                if (data.qas.length > 0) {
+                    markdown += `## ❓ Questions & Answers\n\n`;
+                    data.qas.forEach((qa, index) => {
+                        markdown += `### ${index + 1}. ${qa.q}\n\n`;
+                        markdown += `${qa.a || '*Answer pending...*'}\n\n`;
+                        markdown += `---\n\n`;
+                    });
+                }
+                
+                return markdown;
+            }
+
+            askQuestion() {
+                const modal = document.getElementById('ask-modal');
+                const input = document.getElementById('question-input');
+                modal.classList.add('show');
+                input.focus();
+                input.value = '';
+            }
+
+            closeAskModal() {
+                const modal = document.getElementById('ask-modal');
+                modal.classList.remove('show');
+            }
+
+            submitQuestion() {
+                const input = document.getElementById('question-input');
+                const question = input.value.trim();
+                
+                if (!question) {
+                    this.showNotification('Please enter a question', 'warning');
+                    return;
+                }
+                
+                // Add question locally
+                const qaItem = {
+                    q: question,
+                    a: null,
+                    t: Date.now(),
+                    pending: true
+                };
+                
+                this.state.qas.push(qaItem);
+                this.state.pending.add(question);
+                this.seenQuestions.add(question);
+                
+                this.renderQuestion(qaItem);
+                this.updateUI();
+                
+                if (this.state.followLatest) {
+                    this.selectQuestion(this.state.qas.length - 1);
+                }
+                
+                // Simulate getting an answer (since we don't have OpenAI API here)
+                this.simulateAnswer(question);
+                
+                this.closeAskModal();
+                this.showNotification('Question submitted!', 'success');
+            }
+
+            simulateAnswer(question) {
+                // Simulate delay for answer generation
+                setTimeout(() => {
+                    const answers = [
+                        "This is a great question. Based on current best practices, I'd recommend focusing on scalability and maintainability. The key tradeoff is between development speed and long-term technical debt.",
+                        "From a technical perspective, there are several approaches to consider. The most effective solution would be to implement a hybrid approach that balances performance with flexibility. Trade-off: Higher initial complexity for better long-term adaptability.",
+                        "This requires careful consideration of the requirements and constraints. I'd suggest starting with a proof-of-concept to validate the approach before full implementation. Trade-off: More upfront research time versus reduced risk of costly mistakes.",
+                        "The answer depends on your specific context and goals. Generally, I'd recommend following industry standards while adapting to your unique requirements. Trade-off: Standardization benefits versus customization needs."
+                    ];
+                    
+                    const randomAnswer = answers[Math.floor(Math.random() * answers.length)];
+                    
+                    const qaItem = this.state.qas.find(item => item.q === question);
+                    if (qaItem && qaItem.pending) {
+                        qaItem.a = randomAnswer;
+                        qaItem.pending = false;
+                        this.state.pending.delete(question);
+                        this.renderQuestion(qaItem);
+                        
+                        if (this.state.selectedIndex >= 0 && 
+                            this.state.qas[this.state.selectedIndex] === qaItem) {
+                            this.renderAnswerDetail(qaItem);
+                        }
+                        
+                        this.updateUI();
+                        this.showNotification('Answer received!', 'success');
+                    }
+                }, 2000 + Math.random() * 3000); // Random delay 2-5 seconds
+            }
+
+            scrollTranscriptHome() {
+                const log = document.getElementById('transcript-log');
+                log.scrollTop = 0;
+            }
+
+            scrollTranscriptEnd() {
+                const log = document.getElementById('transcript-log');
+                log.scrollTop = log.scrollHeight;
+            }
+
+            selectNext() {
+                if (this.state.qas.length === 0) return;
+                const newIndex = Math.min(this.state.selectedIndex + 1, this.state.qas.length - 1);
+                this.selectQuestion(newIndex);
+            }
+
+            selectPrevious() {
+                if (this.state.qas.length === 0) return;
+                const newIndex = Math.max(this.state.selectedIndex - 1, 0);
+                this.selectQuestion(newIndex);
+            }
+
+            showNotification(message, type = 'info') {
+                // Create notification element
+                const notification = document.createElement('div');
+                notification.className = `notification notification-${type}`;
+                notification.textContent = message;
+                notification.style.cssText = `
+                    position: fixed;
+                    top: 20px;
+                    right: 20px;
+                    background: ${type === 'success' ? 'rgba(0, 255, 136, 0.2)' : 
+                                 type === 'warning' ? 'rgba(255, 217, 61, 0.2)' : 
+                                 'rgba(0, 212, 255, 0.2)'};
+                    border: 1px solid ${type === 'success' ? '#00ff88' : 
+                                       type === 'warning' ? '#ffd93d' : 
+                                       '#00d4ff'};
+                    color: ${type === 'success' ? '#00ff88' : 
+                             type === 'warning' ? '#ffd93d' : 
+                             '#00d4ff'};
+                    padding: 1rem 1.5rem;
+                    border-radius: 6px;
+                    backdrop-filter: blur(10px);
+                    z-index: 3000;
+                    font-family: inherit;
+                    font-size: 0.9rem;
+                    animation: slideIn 0.3s ease, fadeOut 0.3s ease 2.7s forwards;
+                `;
+                
+                // Add animation styles
+                const style = document.createElement('style');
+                style.textContent = `
+                    @keyframes slideIn {
+                        from { transform: translateX(100%); opacity: 0; }
+                        to { transform: translateX(0); opacity: 1; }
+                    }
+                    @keyframes fadeOut {
+                        from { opacity: 1; }
+                        to { opacity: 0; }
+                    }
+                `;
+                document.head.appendChild(style);
+                
+                document.body.appendChild(notification);
+                
+                // Remove after animation
+                setTimeout(() => {
+                    if (notification.parentNode) {
+                        notification.parentNode.removeChild(notification);
+                    }
+                    if (style.parentNode) {
+                        style.parentNode.removeChild(style);
+                    }
+                }, 3000);
+            }
+        }
+
+        // Global functions for buttons
+        let panel;
+
+        function toggleAutoScroll() {
+            panel.toggleAutoScroll();
+        }
+
+        function toggleFollow() {
+            panel.toggleFollow();
+        }
+
+        function askQuestion() {
+            panel.askQuestion();
+        }
+
+        function resetView() {
+            panel.resetView();
+        }
+
+        function saveSnapshot() {
+            panel.saveSnapshot();
+        }
+
+        function closeAskModal() {
+            panel.closeAskModal();
+        }
+
+        function submitQuestion() {
+            panel.submitQuestion();
+        }
+
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', () => {
+            panel = new STTInterviewPanel();
+            
+            // Handle Enter key in ask modal
+            document.getElementById('question-input').addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    submitQuestion();
+                } else if (e.key === 'Escape') {
+                    closeAskModal();
+                }
+            });
+            
+            // Close modal when clicking outside
+            document.getElementById('ask-modal').addEventListener('click', (e) => {
+                if (e.target.classList.contains('modal-overlay')) {
+                    closeAskModal();
+                }
+            });
+        });
+    </script>
+</body>
+</html>
