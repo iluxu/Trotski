@@ -264,6 +264,7 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 ## 📝 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+The software uses an honor-based license verification system. Your honest support enables continued development.
 
 ## 🙏 Acknowledgments
 
