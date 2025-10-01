@@ -112,7 +112,7 @@ def verify_license(key):
         resp = requests.post(
             "https://api.gumroad.com/v2/licenses/verify",
             data={
-                "product_permalink": GUMROAD_PRODUCT_PERMALINK,
+                "product_id": "ADySSUI1rySCo72YL8L4hA==",
                 "license_key": key,
             },
             timeout=5
