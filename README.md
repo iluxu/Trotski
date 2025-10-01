@@ -18,6 +18,23 @@ The system is composed of three main parts:
 - **Robust & Stable**: Includes automatic reconnection, backpressure handling, and stable connection parameters
 - **Highly Configurable**: Nearly every aspect can be configured via environment variables
 
+## 💳 Pricing & License
+
+Trotski uses a simple licensing model:
+
+- **7-day free trial** - Full features, no credit card required
+- **$29 one-time payment** - Unlimited usage after trial
+- **Purchase**: [Get License Key](https://mucciaccio.gumroad.com/l/himlkf)
+
+### How Licensing Works
+
+1. Download and install Trotski (see Installation below)
+2. On first run, type `trial` when prompted to start your 7-day trial
+3. After trial expires, purchase a license key from Gumroad
+4. Enter your license key in the application to unlock unlimited access
+
+**Note**: The source code is open and available for review. The license system is honor-based with online verification. Honest users support continued development and updates.
+
 ## 📋 Prerequisites
 
 Before you begin, ensure you have the following installed:
