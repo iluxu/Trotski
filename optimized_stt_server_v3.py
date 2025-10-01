@@ -7,6 +7,7 @@ from pathlib import Path  # For multi-OS compatibility
 import numpy as np
 import websockets
 from faster_whisper import WhisperModel
+import requests
 
 # ========================
 # Configuration
@@ -56,6 +57,9 @@ MAX_CONCURRENT_LLM = int(os.getenv("STT_MAX_CONCURRENT_LLM", "2"))
 DEBUG = os.getenv("STT_DEBUG", "1") not in ("0", "false", "False")
 VERBOSE_BUFFER = os.getenv("STT_VERBOSE_BUFFER", "0") not in ("0", "false", "False")
 
+LICENSE_FILE = Path.home() / ".interview_copilot_license"
+GUMROAD_PRODUCT_PERMALINK = "himlkf"  
+
 # ========================
 # Small Helpers & Context Builders (restored from French version)
 # ========================
@@ -101,6 +105,68 @@ def build_llm_context_text() -> str:
     if LLM_MAX_CONTEXT_CHARS and len(txt) > LLM_MAX_CONTEXT_CHARS:
         txt = txt[-LLM_MAX_CONTEXT_CHARS:]
     return txt
+
+def verify_license(key):
+    """Verify key with Gumroad"""
+    try:
+        resp = requests.post(
+            "https://api.gumroad.com/v2/licenses/verify",
+            data={
+                "product_permalink": GUMROAD_PRODUCT_PERMALINK,
+                "license_key": key,
+            },
+            timeout=5
+        )
+        if resp.status_code == 200:
+            return resp.json().get("success", False)
+    except:
+        # If can't reach Gumroad, allow (offline mode)
+        return True
+    return False
+
+def check_license():
+    """Check if valid license exists"""
+    if LICENSE_FILE.exists():
+        key = LICENSE_FILE.read_text().strip()
+        if verify_license(key):
+            print("[License] Valid")
+            return True
+    
+    # No valid license
+    print("\n" + "="*60)
+    print("LICENSE REQUIRED")
+    print("Get license: https://mucciaccio.gumroad.com/l/himlkf")
+    print("="*60)
+    
+    key = input("\nEnter license key (or 'trial' for 7-day trial): ").strip()
+    
+    if key.lower() == "trial":
+        # Save trial start date
+        trial_file = Path.home() / ".interview_copilot_trial"
+        if not trial_file.exists():
+            import datetime
+            trial_file.write_text(str(datetime.date.today()))
+            print("\n7-day trial started!")
+            return True
+        else:
+            import datetime
+            start = datetime.date.fromisoformat(trial_file.read_text())
+            days = (datetime.date.today() - start).days
+            if days <= 7:
+                print(f"\nTrial active ({7-days} days left)")
+                return True
+            else:
+                print("\nTrial expired. Purchase license to continue.")
+                return False
+    
+    if verify_license(key):
+        LICENSE_FILE.write_text(key)
+        print("\nLicense activated!")
+        return True
+    else:
+        print("\nInvalid license key")
+        return False
+
 
 # ========================
 # Whisper Loading with Resilient, Multi-OS Cache
@@ -471,7 +537,10 @@ def reset_state():
         llm_analyzer.seen_questions.clear(); llm_analyzer.answers_timestamps.clear()
 
 async def main():
+    if not check_license():
+        return
     global whisper, llm_analyzer
+
     print("🚀 OPTIMIZED STT SERVER V4 (Best of Both Worlds)")
     print("=" * 50)
     print("[startup] Loading Whisper model..."); whisper = load_whisper_model()
