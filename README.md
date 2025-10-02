@@ -225,30 +225,46 @@ If you find this tool useful, please consider supporting its development. Your s
 ```env
 # OpenAI API Configuration
 OPENAI_API_KEY=your_openai_api_key_here
-OPENAI_MODEL=gpt-5-nano
-OPENAI_MAX_TOKENS=150
-OPENAI_TEMPERATURE=0.7
+# --- Server Configuration ---
+STT_HOST="127.0.0.1"
+STT_PORT="8123"
 
-# Server Configuration
-SERVER_HOST=127.0.0.1
-SERVER_PORT=8123
+# --- Audio Processing ---
+# Audio window size in seconds. Larger values give more context to Whisper but increase latency.
+STT_WINDOW_SECONDS="6.0"
+# How often to run transcription in seconds. Smaller values are more "real-time" but use more CPU/GPU.
+STT_HOP_SECONDS="0.8"
+# Audio energy threshold to start transcribing. Raise if it picks up background noise.
+STT_ENERGY_GATE="1e-4"
 
-# Whisper Configuration
-WHISPER_MODEL=base
-WHISPER_DEVICE=auto
-WHISPER_COMPUTE_TYPE=float16
+# --- Whisper Model Configuration ---
+# Model size. Options: tiny, base, small, medium, large, large-v2, large-v3. Larger models are more accurate but slower.
+STT_MODEL="small"
+# Compute type. "float16" is faster on GPU, "int8" is a good balance. Use "float32" for CPU.
+STT_COMPUTE="int8"
+# Optional: Force a language (e.g., "en", "fr"). Leave empty for auto-detection.
+STT_LANG=""
+# A prompt to guide Whisper's transcription with specific jargon or names.
+STT_INITIAL_PROMPT="Software engineering, data structures, algorithms, system design, cloud computing, AWS, Azure, GCP, microservices, API, CI/CD, DevOps, machine learning, data science, Python, Java, JavaScript, SQL, NoSQL, product management, agile, scrum."
 
-# Audio Configuration
-SAMPLE_RATE=16000
-CHANNELS=1
-CHUNK_DURATION_MS=1000
+# --- LLM Analyzer Configuration ---
+# Set to "0" or "false" to disable question answering and run in transcription-only mode.
+STT_LLM_ENABLED="1"
+# The OpenAI model to use for analysis and generation.
+STT_LLM_MODEL="gpt-5-nano" # Fictional model, replace with a real one like "gpt-4-turbo-preview"
+STT_LLM_EFFORT="low"      # Effort parameter for certain API endpoints.
+# The persona for the LLM. "candidate" makes it speak in the first person. Any other value makes it a "coach".
+STT_LLM_PERSONA="candidate"
+# Maximum number of answers the LLM can generate per minute.
+STT_LLM_ANSWERS_PER_MIN="8"
+# How many concurrent LLM generation tasks are allowed.
+STT_MAX_CONCURRENT_LLM="2"
+# How the LLM sees the transcript context: "full", "window" (last N lines), or "headtail" (start and end).
+STT_LLM_CONTEXT_MODE="full"
 
-# Question Detection
-MIN_QUESTION_LENGTH=10
-QUESTION_DETECTION_ENABLED=true
-
-# Logging
-LOG_LEVEL=INFO
+# --- Debugging ---
+# Set to "1" or "true" for verbose logging.
+STT_DEBUG="1"
 ```
 
 ## 🤝 Contributing
