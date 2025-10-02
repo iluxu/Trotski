@@ -1,272 +1,326 @@
-# Patch pour améliorer la stabilité des connexions WebSocket
+# stable_audio_client_multi_os.py
+# Multi-platform version (Windows, macOS, Linux) — fixed & hardened
 
 import asyncio
-import websockets
 import subprocess
 import json
 import time
+import platform
+import re
+import sys
+import websockets
+
+# ==============================
+# Platform helpers
+# ==============================
+
+def get_platform_config():
+    """Return FFmpeg capture format and listing command per OS."""
+    system = platform.system()
+    if system == "Windows":
+        # DirectShow (dshow). Device names must match exactly what ffmpeg lists.
+        return {
+            "format": "dshow",
+            "device_prefix": "audio=",
+            "list_devices_cmd": ["ffmpeg", "-list_devices", "true", "-f", "dshow", "-i", "dummy"],
+        }
+    elif system == "Darwin":  # macOS
+        # AVFoundation. For listing, ffmpeg expects -i "" (empty string).
+        return {
+            "format": "avfoundation",
+            "device_prefix": ":",  # e.g. ":1" (audio index)
+            "list_devices_cmd": ["ffmpeg", "-f", "avfoundation", "-list_devices", "true", "-i", ""],
+        }
+    elif system == "Linux":
+        # ALSA. Listing via arecord -l (alsa-utils). Capture device examples: "default", "hw:0,0"
+        return {
+            "format": "alsa",
+            "device_prefix": "",  # pass the device name as-is
+            "list_devices_cmd": ["arecord", "-l"],
+        }
+    else:
+        raise NotImplementedError(f"Unsupported OS: {system}")
+
+
+def list_audio_devices():
+    """List available audio input devices depending on OS."""
+    os_name = platform.system()
+    print(f"🔍 Searching for audio devices on {os_name}...")
+    try:
+        cfg = get_platform_config()
+        cmd = cfg["list_devices_cmd"]
+        print(f"   (Command: {' '.join([str(x) for x in cmd])})")
+
+        result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="ignore")
+        output = (result.stdout or "") + "\n" + (result.stderr or "")
+
+        print("-" * 60)
+        if os_name == "Windows":
+            print("DirectShow audio devices (use the name exactly as shown):")
+            # ffmpeg dshow prints lines like:  "Microphone (XYZ)" (audio)
+            devices = re.findall(r'"(.*?)"\s+\(audio\)', output, flags=re.IGNORECASE)
+            if not devices:
+                print(output.strip() or "No devices found. Ensure ffmpeg.exe is in PATH.")
+            for d in devices:
+                print(f"  ➡️  {d}")
+
+        elif os_name == "Darwin":
+            print("AVFoundation devices (use :<index> as --device for audio):")
+            # ffmpeg avfoundation listing prints lines like: [AVFoundation indev @ ...] [1] Built-in Microphone
+            # We extract [index] name
+            lines = re.findall(r"\[(\d+)\]\s+(.+)", output)
+            if not lines:
+                print(output.strip() or "No devices found. Ensure ffmpeg is installed.")
+            else:
+                print("Audio devices often appear as a second list; try indexes you see here.")
+                for idx, name in lines:
+                    print(f"  ➡️  Index: {idx} | Name: {name.strip()} (use :{idx})")
+
+        elif os_name == "Linux":
+            print("ALSA capture devices (suggested names: 'default', 'hw:0,0'):")
+            if "no soundcards found" in output.lower():
+                print("No soundcards found by 'arecord -l'.")
+            else:
+                print(output.strip())
+
+        print("-" * 60)
+
+    except FileNotFoundError:
+        tool = "ffmpeg" if os_name != "Linux" else "arecord (alsa-utils)"
+        print(f"[ERROR] '{tool}' not found in PATH.")
+    except Exception as e:
+        print(f"[ERROR] Listing error: {e}")
+
+
+# ==============================
+# Streamer
+# ==============================
 
 class StableAudioStreamer:
-    """Streamer audio avec gestion robuste des connexions"""
-    
-    def __init__(self, device_name: str, ws_url: str):
+    """Audio streamer with robust WS connection and FFmpeg capture."""
+
+    def __init__(self, device_name: str, ws_url: str, sample_rate: int = 16000):
         self.device_name = device_name
         self.ws_url = ws_url
+        self.sample_rate = sample_rate
+
         self.ffmpeg_process = None
         self.ws = None
         self.running = False
         self.connection_count = 0
-        
+        self.platform_config = get_platform_config()
+
     async def start_streaming(self):
-        """Démarre le streaming avec reconnexion automatique"""
+        """Reconnect loop with backoff on connection errors."""
         self.running = True
-        
         while self.running:
             try:
                 await self.connect_and_stream()
             except KeyboardInterrupt:
-                print("\n[info] Arrêt demandé par l'utilisateur")
+                print("\n[info] Shutdown requested by user")
                 break
             except Exception as e:
-                print(f"[error] Erreur de connexion: {e}")
+                # If FFmpeg failed with a fatal input error, we stop looping.
+                msg = str(e)
+                if "FATAL_INPUT" in msg:
+                    print("[error] Fatal input error from FFmpeg. Stopping.")
+                    self.running = False
+                    break
+                print(f"[error] Connection error: {e!r}")
                 if self.running:
-                    print("[info] Reconnexion dans 2 secondes...")
+                    print("[info] Reconnecting in 2 seconds...")
                     await asyncio.sleep(2)
-    
+
     async def connect_and_stream(self):
-        """Connexion WebSocket optimisée"""
+        """Connect once and stream until error/stop."""
         self.connection_count += 1
-        print(f"[info] Tentative de connexion #{self.connection_count} vers {self.ws_url}")
-        
-        # Paramètres WebSocket optimisés pour la stabilité
+        print(f"[info] Connection attempt #{self.connection_count} to {self.ws_url}")
+
         async with websockets.connect(
             self.ws_url,
-            max_size=2**20,        # 1MB max message
-            ping_interval=15,      # Ping toutes les 15s (plus fréquent)
-            ping_timeout=8,        # Timeout de 8s
-            close_timeout=3,       # Fermeture rapide
-            compression=None       # Pas de compression pour moins de latence
+            max_size=2**20,
+            ping_interval=15,
+            ping_timeout=8,
+            close_timeout=3,
+            compression=None,
         ) as ws:
             self.ws = ws
-            print(f"[info] ✅ Connexion #{self.connection_count} établie")
-            
-            # Envoyer un message initial pour confirmer la connexion
-            await ws.send(json.dumps({"cmd": "hello", "client": "audio_streamer"}))
-            
-            # Démarrer FFmpeg
+            print(f"[info] ✅ Connection #{self.connection_count} established")
+            await ws.send(json.dumps({"cmd": "hello", "client": "audio_streamer_multi_os"}))
+
+            # Start FFmpeg
             await self.start_ffmpeg_optimized()
-            
-            # Streaming principal
+            # Stream
             await self.stream_with_heartbeat()
-    
+
+    def build_ffmpeg_cmd(self) -> list:
+        """Build the correct FFmpeg command by OS (correct order!)."""
+        fmt = self.platform_config["format"]
+        prefix = self.platform_config["device_prefix"]
+        device_full_name = f"{prefix}{self.device_name}"
+
+        # Base
+        cmd = ["ffmpeg", "-hide_banner", "-loglevel", "warning", "-f", fmt]
+
+        # Windows dshow needs audio buffer option BEFORE -i
+        if fmt == "dshow":
+            cmd += ["-audio_buffer_size", "20"]
+
+        # Input
+        cmd += ["-i", device_full_name]
+
+        # Output format: mono 16kHz, 16-bit PCM to stdout
+        cmd += ["-ac", "1", "-ar", str(self.sample_rate), "-f", "s16le", "-flush_packets", "1", "pipe:1"]
+        return cmd
+
     async def start_ffmpeg_optimized(self):
-        """FFmpeg avec paramètres optimisés pour la stabilité"""
-        cmd = [
-            "ffmpeg",
-            "-hide_banner", "-loglevel", "warning",  # Moins de logs
-            "-f", "dshow",
-            "-audio_buffer_size", "20",              # Buffer plus petit
-            "-i", f"audio={self.device_name}",
-            "-ac", "1",                              # Mono
-            "-ar", "16000",                          # 16kHz
-            "-f", "s16le",                           # PCM 16-bit
-            "-flush_packets", "1",                   # Flush immédiat
-            "pipe:1"
-        ]
-        
+        """Launch FFmpeg as a subprocess with stdout=audio stream."""
+        cmd = self.build_ffmpeg_cmd()
+        print(f"[info] Launching FFmpeg with command: {' '.join(cmd)}")
         try:
             self.ffmpeg_process = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
-                limit=2**20  # Limit buffer size
+                limit=2**20,
             )
-            print("[info] ✅ FFmpeg démarré avec paramètres optimisés")
+            print("[info] ✅ FFmpeg started successfully")
+        except FileNotFoundError:
+            raise RuntimeError("FFmpeg not found in PATH. Please place ffmpeg.exe next to your .exe or add to PATH.")
         except Exception as e:
-            raise RuntimeError(f"Impossible de démarrer FFmpeg: {e}")
-    
+            raise RuntimeError(f"Failed to start FFmpeg: {e}")
+
     async def stream_with_heartbeat(self):
-        """Streaming avec heartbeat pour maintenir la connexion"""
-        chunk_size = 3200  # 0.1s d'audio à 16kHz mono (plus petit = moins de latence)
+        """Read PCM chunks from FFmpeg and send over WS. Stop on fatal FFmpeg errors."""
+        CHUNK_SIZE = 3200  # 0.1s @ 16kHz mono (2 bytes per sample)
         last_heartbeat = time.time()
-        heartbeat_interval = 10  # Heartbeat toutes les 10s
+        heartbeat_interval = 10
         bytes_sent = 0
-        
+
         try:
             while self.running and self.ffmpeg_process:
-                # Lire chunk audio
                 try:
-                    chunk = await asyncio.wait_for(
-                        self.ffmpeg_process.stdout.read(chunk_size), 
-                        timeout=1.0  # Timeout de lecture
-                    )
+                    chunk = await asyncio.wait_for(self.ffmpeg_process.stdout.read(CHUNK_SIZE), timeout=1.0)
                 except asyncio.TimeoutError:
-                    # Pas de données audio, envoyer un heartbeat si nécessaire
+                    # Periodic heartbeat
                     if time.time() - last_heartbeat > heartbeat_interval:
                         await self.send_heartbeat()
                         last_heartbeat = time.time()
                     continue
-                
+
                 if not chunk:
-                    print("[warning] Plus de données audio de FFmpeg")
+                    # No more data: check stderr to understand why
+                    stderr_output = await self._read_ffmpeg_stderr()
+                    print(f"[warning] No more audio data from FFmpeg.\n{stderr_output}")
+                    # Detect fatal device errors and stop the reconnection loop
+                    if ("Error opening input" in stderr_output) or ("No such file or directory" in stderr_output) \
+                       or ("could not find" in stderr_output.lower()):
+                        self.running = False
+                        raise RuntimeError("FATAL_INPUT: FFmpeg cannot open the selected device.")
                     break
-                
-                # Envoyer chunk audio
+
                 await self.ws.send(chunk)
                 bytes_sent += len(chunk)
-                
-                # Heartbeat périodique
+
                 if time.time() - last_heartbeat > heartbeat_interval:
                     await self.send_heartbeat()
                     last_heartbeat = time.time()
-                
-                # Log de progression (moins fréquent)
-                if bytes_sent % (16000 * 2 * 30) == 0:  # Toutes les 30s
-                    print(f"[info] 📊 {bytes_sent // 1024}KB audio envoyés")
-                    
+
+                # Light progress log every ~30s
+                if bytes_sent and (bytes_sent % (self.sample_rate * 2 * 30) == 0):
+                    print(f"[info] 📊 {bytes_sent // 1024}KB of audio sent")
+
         except websockets.exceptions.ConnectionClosed as e:
-            print(f"[warning] Connexion WebSocket fermée: {e}")
+            print(f"[warning] WebSocket connection closed: {e}")
         except Exception as e:
-            print(f"[error] Erreur de streaming: {e}")
+            # Reraise to let start_streaming decide whether to retry or stop
+            raise
         finally:
             await self.cleanup_ffmpeg()
-    
-    async def send_heartbeat(self):
-        """Envoie un heartbeat pour maintenir la connexion"""
+
+    async def _read_ffmpeg_stderr(self) -> str:
         try:
-            heartbeat_msg = json.dumps({"cmd": "ping", "timestamp": time.time()})
-            await self.ws.send(heartbeat_msg)
-        except Exception as e:
-            print(f"[warning] Erreur heartbeat: {e}")
-    
+            if self.ffmpeg_process and self.ffmpeg_process.stderr:
+                data = await self.ffmpeg_process.stderr.read()
+                return (data or b"").decode(errors="ignore")
+        except Exception:
+            pass
+        return ""
+
+    async def send_heartbeat(self):
+        """Send small ping message to keep WS alive."""
+        try:
+            await self.ws.send(json.dumps({"cmd": "ping", "timestamp": time.time()}))
+        except Exception:
+            pass
+
     async def cleanup_ffmpeg(self):
-        """Nettoyage propre de FFmpeg"""
         if self.ffmpeg_process:
             try:
-                # Tentative d'arrêt propre
-                self.ffmpeg_process.terminate()
-                await asyncio.wait_for(self.ffmpeg_process.wait(), timeout=3)
-                print("[info] ✅ FFmpeg arrêté proprement")
+                if self.ffmpeg_process.returncode is None:
+                    self.ffmpeg_process.terminate()
+                    await asyncio.wait_for(self.ffmpeg_process.wait(), timeout=3)
+                    print("[info] ✅ FFmpeg stopped cleanly")
             except asyncio.TimeoutError:
-                # Force kill si nécessaire
                 self.ffmpeg_process.kill()
-                print("[warning] ⚠️ FFmpeg forcé à s'arrêter")
-            except Exception as e:
-                print(f"[warning] Erreur cleanup FFmpeg: {e}")
+                print("[warning] ⚠️ FFmpeg was force-killed")
+            except Exception:
+                pass
             finally:
                 self.ffmpeg_process = None
-    
+
     def stop(self):
-        """Arrête le streaming"""
-        print("[info] 🛑 Arrêt du streaming demandé")
+        print("[info] 🛑 Streaming stop requested")
         self.running = False
 
-# Serveur WebSocket avec gestion améliorée des heartbeats
-class ImprovedWebSocketHandler:
-    """Handler WebSocket amélioré pour gérer les heartbeats"""
-    
-    def __init__(self, original_handler):
-        self.original_handler = original_handler
-    
-    async def enhanced_handler(self, ws, path):
-        """Handler avec gestion des messages de contrôle"""
-        print(f"[ws] 🔌 Nouvelle connexion depuis {ws.remote_address}")
-        
-        # Wrapper pour intercepter les messages JSON
-        original_send = ws.send
-        
-        async def intercepted_handler():
-            try:
-                async for message in ws:
-                    if isinstance(message, str):
-                        # Message JSON - traiter les commandes de contrôle
-                        try:
-                            data = json.loads(message)
-                            if data.get("cmd") == "ping":
-                                # Répondre au ping
-                                await ws.send(json.dumps({"cmd": "pong", "timestamp": time.time()}))
-                                continue
-                            elif data.get("cmd") == "hello":
-                                # Message de bienvenue
-                                print(f"[ws] 👋 Client identifié: {data.get('client', 'unknown')}")
-                                continue
-                        except json.JSONDecodeError:
-                            pass
-                    
-                    # Rediriger vers le handler original pour les données audio
-                    # (On simule en récréant le message via une queue)
-                    if hasattr(ws, '_message_queue'):
-                        await ws._message_queue.put(message)
-            except Exception as e:
-                print(f"[ws] ⚠️ Erreur dans le handler: {e}")
-        
-        # Lancer les deux handlers en parallèle
-        await asyncio.gather(
-            intercepted_handler(),
-            self.original_handler(ws, path),
-            return_exceptions=True
-        )
 
-# Fonction utilitaire pour appliquer le patch
-def apply_stability_patches():
-    """Applique les patches de stabilité"""
-    
-    # Patch 1: Paramètres WebSocket serveur optimisés
-    def get_optimized_server_args():
-        return {
-            'max_size': 2**20,           # 1MB max
-            'ping_interval': 10,         # Ping toutes les 15s
-            'ping_timeout': 30,           # Timeout 8s
-            'close_timeout': 3,          # Fermeture rapide
-            'compression': None,         # Pas de compression
-            'max_queue': 32,            # Queue plus petite
-        }
-    
-    # Patch 2: Filtre pour les lignes de tirets
-    def filter_transcription_output(text: str) -> str:
-        """Filtre les artefacts de transcription"""
-        # Supprimer les longues séquences de caractères répétés
-        import re
-        # Ligne avec plus de 20 caractères identiques consécutifs
-        if re.search(r'(.)\1{20,}', text):
-            return ""
-        # Ligne trop courte ou que des espaces/caractères spéciaux
-        if len(text.strip()) < 3 or not re.search(r'[a-zA-Z]', text):
-            return ""
-        return text
-    
-    return {
-        'server_args': get_optimized_server_args(),
-        'text_filter': filter_transcription_output
-    }
-
-# Usage example
 async def run_stable_client(device_name: str, ws_url: str = "ws://127.0.0.1:8123/"):
-    """Lance le client audio stable"""
     streamer = StableAudioStreamer(device_name, ws_url)
-    
     try:
         await streamer.start_streaming()
     except KeyboardInterrupt:
-        print("\n[info] Arrêt demandé")
+        print("\n[info] Shutdown requested")
     finally:
         streamer.stop()
-        await asyncio.sleep(1)  # Laisser le temps pour le cleanup
+        await asyncio.sleep(0.5)
+
+
+# ==============================
+# CLI
+# ==============================
 
 if __name__ == "__main__":
     import argparse
-    
-    parser = argparse.ArgumentParser(description="Client Audio Stable")
-    parser.add_argument("--device", required=True, help="Nom du device audio")
-    parser.add_argument("--ws", default="ws://127.0.0.1:8123/", help="URL WebSocket")
-    
+
+    parser = argparse.ArgumentParser(description="Stable Multi-OS Audio Client")
+    parser.add_argument("--list-devices", action="store_true", help="List available audio input devices and exit.")
+    parser.add_argument("--device", help="Device name (Windows: exact dshow name; macOS: use index like ':1'; Linux: 'default' or 'hw:0,0').")
+    parser.add_argument("--ws", default="ws://127.0.0.1:8123/", help="WebSocket URL (default: ws://127.0.0.1:8123/)")
     args = parser.parse_args()
-    
-    print("🎤 CLIENT AUDIO STABLE")
+
+    if args.list_devices:
+        list_audio_devices()
+        sys.exit(0)
+
+    if not args.device:
+        print("[ERROR] The --device argument is required.")
+        print("Examples:")
+        if platform.system() == "Windows":
+            print('  python stable_audio_client_multi_os.py --list-devices')
+            print('  python stable_audio_client_multi_os.py --device "Microphone (Your Device)"')
+        elif platform.system() == "Darwin":
+            print('  python stable_audio_client_multi_os.py --list-devices')
+            print('  python stable_audio_client_multi_os.py --device :1')
+        else:
+            print("  python stable_audio_client_multi_os.py --device default")
+        sys.exit(1)
+
+    print("🎤 STABLE AUDIO CLIENT (MULTI-OS)")
     print("=" * 50)
+    print(f"OS: {platform.system()}")
     print(f"Device: {args.device}")
     print(f"WebSocket: {args.ws}")
-    print("Appuyez sur Ctrl+C pour arrêter")
+    print("Press Ctrl+C to stop")
     print("=" * 50)
-    
+
     asyncio.run(run_stable_client(args.device, args.ws))
