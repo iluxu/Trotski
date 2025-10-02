@@ -52,9 +52,10 @@ Required by the audio client to capture microphone audio.
 For significant performance gains with the Whisper model.
 
 - Install the latest [NVIDIA Driver](https://www.nvidia.com/drivers/)
-- Install the [CUDA Toolkit](https://developer.nvidia.com/cuda-toolkit) (v11.x is compatible)
-- Install [cuDNN](https://developer.nvidia.com/cudnn)
-
+- Install CUDA runtime libs via pip
+   ```bash
+   pip install -U nvidia-cuda-runtime-cu12 nvidia-cublas-cu12 nvidia-cudnn-cu12
+   ```
 ### OpenAI API Key
 Required for question detection and answer generation.
 
@@ -81,18 +82,9 @@ source venv/bin/activate
 
 ### 3. Install Python Dependencies
 
-Create a `requirements.txt` file with the content specified below and run:
-
 ```bash
 pip install -r requirements.txt
 ```
-
-**CPU-Only Note**: If you don't have an NVIDIA GPU, first install the CPU version of PyTorch:
-```bash
-pip install torch --index-url https://download.pytorch.org/whl/cpu
-```
-Then run `pip install -r requirements.txt`.
-
 ### 4. Set Up Environment Variables
 
 Create a `.env` file by copying the example:
