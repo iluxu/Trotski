@@ -8,6 +8,36 @@ import numpy as np
 import websockets
 from faster_whisper import WhisperModel
 import requests
+import sys
+from pathlib import Path
+from dotenv import load_dotenv
+
+
+def load_env():
+    # Prefer .env next to this script; fall back to current working dir.
+    script_dir = Path(__file__).resolve().parent
+    candidates = [
+        script_dir / ".env.local",
+        script_dir / ".env",
+        Path.cwd() / ".env.local",
+        Path.cwd() / ".env",
+    ]
+    loaded = False
+    for p in candidates:
+        if p.is_file():
+            load_dotenv(p, override=False)  # don’t overwrite real env vars
+            print(f"[env] Loaded {p}")
+            loaded = True
+            break
+    if not loaded:
+        # As a last resort, search upwards from CWD
+        from dotenv import find_dotenv
+        found = find_dotenv(usecwd=True)
+        if found:
+            load_dotenv(found, override=False)
+            print(f"[env] Loaded {found}")
+
+load_env()
 
 # ========================
 # Configuration
@@ -59,6 +89,9 @@ VERBOSE_BUFFER = os.getenv("STT_VERBOSE_BUFFER", "0") not in ("0", "false", "Fal
 
 LICENSE_FILE = Path.home() / ".interview_copilot_license"
 GUMROAD_PRODUCT_PERMALINK = "himlkf"  
+
+
+
 
 # ========================
 # Small Helpers & Context Builders (restored from French version)
