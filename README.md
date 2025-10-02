@@ -88,15 +88,6 @@ pip install -r requirements.txt
 ### 4. Set Up Environment Variables
 
 Create a `.env` file by copying the example:
-
-```bash
-# On Windows
-copy .env.example .env
-
-# On macOS/Linux
-cp .env.example .env
-```
-
 Now, edit the `.env` file and add your `OPENAI_API_KEY`. See the `.env.example` section for all options.
 
 ## ⚙️ Usage
