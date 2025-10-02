@@ -39,6 +39,7 @@ def load_env():
 
 load_env()
 
+
 # ========================
 # Configuration
 # ========================
@@ -52,6 +53,7 @@ ENERGY_GATE = float(os.getenv("STT_ENERGY_GATE", "1e-4"))
 
 MODEL_NAME = os.getenv("STT_MODEL", "small")
 COMPUTE_TYPE = os.getenv("STT_COMPUTE", "int8")
+DEVICE = os.getenv("STT_DEVICE", "cpu").lower()  # cpu | cuda | auto
 FORCE_LANG = os.getenv("STT_LANG") or None
 # Generic tech prompt for better transcription of jargon
 INITIAL_PROMPT = os.getenv(
@@ -89,9 +91,6 @@ VERBOSE_BUFFER = os.getenv("STT_VERBOSE_BUFFER", "0") not in ("0", "false", "Fal
 
 LICENSE_FILE = Path.home() / ".interview_copilot_license"
 GUMROAD_PRODUCT_PERMALINK = "himlkf"  
-
-
-
 
 # ========================
 # Small Helpers & Context Builders (restored from French version)
@@ -213,8 +212,8 @@ def hf_cache_dir() -> str:
 def load_whisper_model() -> WhisperModel:
     cache_root = hf_cache_dir()
     try:
-        print(f"[model] Loading {MODEL_NAME} in {cache_root}")
-        return WhisperModel(MODEL_NAME, compute_type=COMPUTE_TYPE, download_root=cache_root)
+        print(f"[model] Loading {MODEL_NAME} in {cache_root} (device={DEVICE}, compute={COMPUTE_TYPE})")
+        return WhisperModel(MODEL_NAME, device=DEVICE, compute_type=COMPUTE_TYPE, download_root=cache_root)
     except Exception:
         model_folder_name = f"models--Systran--faster-whisper-{MODEL_NAME}"
         corrupted_path = os.path.join(cache_root, model_folder_name)
