@@ -225,6 +225,7 @@ If you find this tool useful, please consider supporting its development. Your s
 ```env
 # OpenAI API Configuration
 OPENAI_API_KEY=your_openai_api_key_here
+
 # --- Server Configuration ---
 STT_HOST="127.0.0.1"
 STT_PORT="8123"
@@ -247,12 +248,23 @@ STT_LANG=""
 # A prompt to guide Whisper's transcription with specific jargon or names.
 STT_INITIAL_PROMPT="Software engineering, data structures, algorithms, system design, cloud computing, AWS, Azure, GCP, microservices, API, CI/CD, DevOps, machine learning, data science, Python, Java, JavaScript, SQL, NoSQL, product management, agile, scrum."
 
+# --- Runtime Device Selection ---
+# Choose "cpu" to avoid CUDA/cuDNN, "cuda" for NVIDIA GPU, or "auto" to let Faster-Whisper decide.
+STT_DEVICE="cpu"        # safest default on Windows to avoid cuDNN DLL errors
+
+# If using GPU, uncomment these (requires recent NVIDIA drivers + cuDNN CUDA 12 wheels installed):
+# STT_DEVICE="cuda"
+# STT_COMPUTE="float16"  # good default for GPU
+
+# Or let Faster-Whisper pick automatically:
+# STT_DEVICE="auto"
+
 # --- LLM Analyzer Configuration ---
 # Set to "0" or "false" to disable question answering and run in transcription-only mode.
 STT_LLM_ENABLED="1"
 # The OpenAI model to use for analysis and generation.
-STT_LLM_MODEL="gpt-5-nano" # Fictional model, replace with a real one like "gpt-4-turbo-preview"
-STT_LLM_EFFORT="low"      # Effort parameter for certain API endpoints.
+STT_LLM_MODEL="gpt-5-nano" # Fictional model, replace with a real one like "gpt-4o-mini" or similar
+STT_LLM_EFFORT="low"       # Effort parameter for certain API endpoints.
 # The persona for the LLM. "candidate" makes it speak in the first person. Any other value makes it a "coach".
 STT_LLM_PERSONA="candidate"
 # Maximum number of answers the LLM can generate per minute.
